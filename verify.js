@@ -7,7 +7,7 @@ try {
     [
       'commit',
       '-m',
-      'Step 12: Implement persistent Supabase database, RLS policies, Admin Portal, and cross-device sync'
+      'Step 13: Implement native IndexedDB client-side persistence for preferences and enquiry drafts with zero visual or layout changes'
     ],
     { encoding: 'utf-8' }
   );

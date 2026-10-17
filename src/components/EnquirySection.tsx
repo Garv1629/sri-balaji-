@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Phone, MessageSquare, MapPin, ShieldCheck, ArrowRight, CheckCircle2, Copy, Check, ExternalLink, Sparkles, Building2 } from 'lucide-react';
 import { EnquiryData, Property } from '../types/property';
+import { loadEnquiryDraft, saveEnquiryDraft, clearEnquiryDraft } from '../lib/indexedDb';
 
 interface EnquirySectionProps {
   initialProperty?: string;
@@ -39,6 +40,36 @@ export const EnquirySection: React.FC<EnquirySectionProps> = ({
   const [preparedMessageText, setPreparedMessageText] = useState('');
   const [copied, setCopied] = useState(false);
   const nameInputRef = useRef<HTMLInputElement>(null);
+
+  // Step 13: Restore consultation draft from IndexedDB
+  useEffect(() => {
+    let isMounted = true;
+    loadEnquiryDraft().then((saved) => {
+      if (isMounted && saved) {
+        setFormData(prev => ({
+          ...prev,
+          fullName: saved.fullName || prev.fullName,
+          phone: saved.phone || prev.phone,
+          preferredLocality: saved.preferredLocality || prev.preferredLocality,
+          budget: saved.budget || prev.budget,
+          message: saved.message || prev.message
+        }));
+      }
+    });
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  // Step 13: Auto-persist form input drafts to IndexedDB safely
+  useEffect(() => {
+    if (formData.fullName || formData.phone || formData.message || formData.preferredLocality) {
+      const timer = setTimeout(() => {
+        saveEnquiryDraft(formData);
+      }, 500);
+      return () => clearTimeout(timer);
+    }
+  }, [formData]);
 
   // Sync if initialProperty or selectedPropertyObj changes
   useEffect(() => {
@@ -138,6 +169,8 @@ export const EnquirySection: React.FC<EnquirySectionProps> = ({
     setTimeout(() => {
       setIsSubmitting(false);
       setShowConfirmation(true);
+      // Clear saved consultation draft from IndexedDB
+      clearEnquiryDraft();
       // Automatically open WhatsApp in a new window/tab
       window.open(waUrl, '_blank', 'noopener,noreferrer');
     }, 450);

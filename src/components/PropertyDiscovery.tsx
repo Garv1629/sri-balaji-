@@ -1,7 +1,8 @@
-import React, { useState, useMemo } from 'react';
-import { Search, X, Sparkles, Filter, AlertCircle, ArrowRight, RefreshCw, CheckCircle2 } from 'lucide-react';
+import React, { useState, useMemo, useEffect } from 'react';
+import { Search, X, Sparkles, Filter, AlertCircle, ArrowRight } from 'lucide-react';
 import { Property, PropertyFilterTab } from '../types/property';
-import { useProperties } from '../context/PropertyContext';
+import { PROPERTIES } from '../data/properties';
+import { loadUserPreferences, saveUserPreferences } from '../lib/indexedDb';
 import { PropertyCard } from './PropertyCard';
 
 interface PropertyDiscoveryProps {
@@ -17,25 +18,50 @@ export const PropertyDiscovery: React.FC<PropertyDiscoveryProps> = ({
   onSelectProperty,
   onEnquire
 }) => {
-  const { properties, isLoading, isSupabaseLive } = useProperties();
   const [activeTab, setActiveTab] = useState<PropertyFilterTab>(
     (selectedCategory as PropertyFilterTab) || 'all'
   );
   const [searchQuery, setSearchQuery] = useState('');
   const [sortBy, setSortBy] = useState<'featured' | 'price-asc' | 'price-desc'>('featured');
 
+  // Step 13: Restore client preference from IndexedDB asynchronously
+  useEffect(() => {
+    let isMounted = true;
+    loadUserPreferences().then((prefs) => {
+      if (isMounted && prefs) {
+        if (prefs.activeTab && !selectedCategory) {
+          setActiveTab(prefs.activeTab);
+        }
+        if (prefs.sortBy) {
+          setSortBy(prefs.sortBy);
+        }
+      }
+    });
+    return () => {
+      isMounted = false;
+    };
+  }, [selectedCategory]);
+
   // Handle external category change if passed
-  React.useEffect(() => {
+  useEffect(() => {
     if (selectedCategory && selectedCategory !== activeTab) {
       setActiveTab(selectedCategory as PropertyFilterTab);
     }
-  }, [selectedCategory]);
+  }, [selectedCategory, activeTab]);
 
   const handleTabChange = (tab: PropertyFilterTab) => {
     setActiveTab(tab);
+    // Persist user filter preference to IndexedDB
+    saveUserPreferences({ activeTab: tab, sortBy });
     if (onSelectCategory) {
       onSelectCategory(tab);
     }
+  };
+
+  const handleSortChange = (newSort: 'featured' | 'price-asc' | 'price-desc') => {
+    setSortBy(newSort);
+    // Persist user sort preference to IndexedDB
+    saveUserPreferences({ activeTab, sortBy: newSort });
   };
 
   // Filter definitions exactly as requested
@@ -49,9 +75,9 @@ export const PropertyDiscovery: React.FC<PropertyDiscoveryProps> = ({
     { key: 'rentals', label: 'Rental Properties' },
   ];
 
-  // Combined Search & Filter Logic from Authoritative Database
+  // Combined Search & Filter Logic
   const filteredProperties = useMemo(() => {
-    return properties.filter(property => {
+    return PROPERTIES.filter(property => {
       // 1. Category Tab Filter
       if (activeTab === 'apartments') {
         if (property.category !== 'apartments' && property.type !== 'Apartment' && property.type !== 'Penthouse' && property.type !== 'Studio') {
@@ -71,35 +97,47 @@ export const PropertyDiscovery: React.FC<PropertyDiscoveryProps> = ({
         if (property.priceType !== 'rent') return false;
       }
 
-      // 2. Real-time Search Filter (titles, configurations, localities)
+      // 2. Global Text Search
       if (searchQuery.trim()) {
         const query = searchQuery.toLowerCase().trim();
         const matchesTitle = property.title.toLowerCase().includes(query);
         const matchesLocality = property.locality.toLowerCase().includes(query);
         const matchesLocation = property.location.toLowerCase().includes(query);
-        const matchesConfig = property.configuration.toLowerCase().includes(query);
         const matchesType = property.type.toLowerCase().includes(query);
-        const matchesTag = property.tagline.toLowerCase().includes(query);
+        const matchesConfig = property.configuration.toLowerCase().includes(query);
+        const matchesDesc = property.description.toLowerCase().includes(query);
+        const matchesHighlights = property.highlights.some(h => h.toLowerCase().includes(query));
 
-        if (!matchesTitle && !matchesLocality && !matchesLocation && !matchesConfig && !matchesType && !matchesTag) {
+        if (!matchesTitle && !matchesLocality && !matchesLocation && !matchesType && !matchesConfig && !matchesDesc && !matchesHighlights) {
           return false;
         }
       }
 
       return true;
     }).sort((a, b) => {
-      if (sortBy === 'price-asc') return a.priceNumeric - b.priceNumeric;
-      if (sortBy === 'price-desc') return b.priceNumeric - a.priceNumeric;
-      return (b.featured ? 1 : 0) - (a.featured ? 1 : 0);
+      if (sortBy === 'price-asc') {
+        return a.priceNumeric - b.priceNumeric;
+      }
+      if (sortBy === 'price-desc') {
+        return b.priceNumeric - a.priceNumeric;
+      }
+      // 'featured'
+      if (a.featured && !b.featured) return -1;
+      if (!a.featured && b.featured) return 1;
+      return 0;
     });
   }, [activeTab, searchQuery, sortBy]);
 
-  const hasActiveFilters = activeTab !== 'all' || searchQuery.trim() !== '' || sortBy !== 'featured';
+  const hasActiveFilters = activeTab !== 'all' || searchQuery.trim().length > 0;
 
   const resetFilters = () => {
     setActiveTab('all');
     setSearchQuery('');
     setSortBy('featured');
+    saveUserPreferences({ activeTab: 'all', sortBy: 'featured' });
+    if (onSelectCategory) {
+      onSelectCategory('all');
+    }
   };
 
   return (
@@ -107,66 +145,45 @@ export const PropertyDiscovery: React.FC<PropertyDiscoveryProps> = ({
       id="properties" 
       className="section-wrapper" 
       style={{
-        backgroundColor: 'var(--color-eggshell)',
+        backgroundColor: 'var(--color-bg-primary)',
         color: 'var(--color-text)',
-        paddingTop: '6.5rem',
-        paddingBottom: '7rem',
-        borderTop: '1px solid var(--color-orinoco)',
-        borderBottom: '1px solid var(--color-orinoco)'
+        position: 'relative',
+        paddingTop: '6rem',
+        paddingBottom: '6rem'
       }}
     >
-      <div className="container">
-        {/* 1. Editorial Section Header */}
-        <div style={{
-          maxWidth: '780px',
-          marginBottom: '3.5rem'
-        }}>
-          {/* Eyebrow */}
+      <div className="container" style={{ position: 'relative', zIndex: 1 }}>
+        {/* Section Header */}
+        <div style={{ maxWidth: '840px', marginBottom: '3.5rem' }}>
           <div className="eyebrow reveal-fade-up">
-            CURATED SPACES
+            PORTFOLIO DISCOVERY
           </div>
-
-          {/* Heading */}
-          <h2 className="section-title-charcoal reveal-fade-up delay-100">
-            Find Your Next Place.
+          <h2 className="section-title-charcoal reveal-fade-up delay-100" style={{ fontSize: 'clamp(2.2rem, 4.5vw, 3.5rem)', lineHeight: 1.15, marginBottom: '1.25rem' }}>
+            “Every Home Holds a Story.”
           </h2>
-
-          {/* Supporting Text */}
-          <p className="section-desc-charcoal reveal-fade-up delay-150">
-            Explore available homes and properties with assistance from Sri Balaji Real Estate. Whether seeking an architectural villa, high-rise residence, or turnkey executive rental, each listing is represented with complete clarity.
+          <p className="lead-editorial reveal-fade-up delay-200" style={{ fontSize: '1.1rem', color: 'var(--color-muted)', lineHeight: 1.65 }}>
+            Explore hand-picked, legally clear residential mandates situated within the thriving Sarjapur Road micro-market. From private garden villas to transit-linked tech apartments.
           </p>
-
-          {/* Sample Dataset Notice */}
-          <div className="reveal-fade-up delay-200" style={{
-            display: 'inline-flex',
-            alignItems: 'flex-start',
-            gap: '0.65rem',
-            background: 'rgba(219, 218, 175, 0.3)',
-            border: '1px solid var(--color-orinoco)',
-            borderRadius: 'var(--radius-md)',
-            padding: '0.65rem 1.15rem',
-            marginTop: '1.25rem',
-            fontSize: '0.78rem',
-            color: 'var(--color-verdun)',
-            maxWidth: '100%',
-            lineHeight: 1.5
-          }}>
-            <AlertCircle size={15} style={{ color: 'var(--color-verdun)', flexShrink: 0, marginTop: '2px' }} />
-            <span>
-              <strong>Showcase Portfolio:</strong> Listings below are architectural models for evaluation. For active off-market inventory on Sarjapur Road, connect with our desk directly.
-            </span>
-          </div>
         </div>
 
-        {/* 2. Interactive Filter Bar & Search Field */}
-        <div style={{
-          display: 'flex',
-          flexDirection: 'column',
-          gap: '1.25rem',
-          marginBottom: '2.75rem'
-        }}>
-          {/* Horizontally Scrollable Categories Tab on Mobile, Flex on Desktop */}
-          <div className="filter-tabs-scroll reveal-fade-up delay-200" role="tablist" aria-label="Property Category Filters">
+        {/* 1. Category Filter Navigation — Liquid-Glass Pill Track */}
+        <div className="reveal-fade-up delay-200" style={{ marginBottom: '1.75rem', overflowX: 'auto', paddingBottom: '0.5rem' }}>
+          <div 
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '0.45rem',
+              background: 'rgba(252, 255, 245, 0.45)',
+              backdropFilter: 'blur(20px) saturate(180%)',
+              WebkitBackdropFilter: 'blur(20px) saturate(180%)',
+              padding: '0.4rem',
+              borderRadius: 'var(--radius-pill)',
+              border: '1px solid rgba(219, 218, 175, 0.6)',
+              boxShadow: 'inset 0 1px 1px 0 rgba(255, 255, 255, 0.8), 0 4px 16px rgba(37, 40, 25, 0.04)'
+            }}
+            role="tablist"
+            aria-label="Property categories"
+          >
             {filterTabs.map((tab) => {
               const isActive = activeTab === tab.key;
               return (
@@ -174,23 +191,23 @@ export const PropertyDiscovery: React.FC<PropertyDiscoveryProps> = ({
                   key={tab.key}
                   role="tab"
                   aria-selected={isActive}
+                  aria-controls={`panel-${tab.key}`}
+                  id={`tab-${tab.key}`}
                   onClick={() => handleTabChange(tab.key)}
                   style={{
-                    padding: '0.65rem 1.4rem',
+                    position: 'relative',
+                    padding: '0.6rem 1.35rem',
                     borderRadius: 'var(--radius-pill)',
-                    fontSize: '0.82rem',
+                    fontSize: '0.85rem',
                     fontWeight: isActive ? 600 : 500,
-                    letterSpacing: '0.02em',
+                    letterSpacing: '0.01em',
+                    color: isActive ? 'var(--color-eggshell)' : 'var(--color-verdun)',
+                    background: isActive ? 'var(--color-verdun)' : 'transparent',
+                    border: 'none',
+                    cursor: 'pointer',
+                    transition: 'all 0.3s cubic-bezier(0.16, 1, 0.3, 1)',
                     whiteSpace: 'nowrap',
-                    transition: 'all 0.25s cubic-bezier(0.16, 1, 0.3, 1)',
-                    background: isActive ? 'var(--color-verdun)' : 'rgba(255, 255, 255, 0.65)',
-                    backdropFilter: 'blur(12px)',
-                    WebkitBackdropFilter: 'blur(12px)',
-                    color: isActive ? 'var(--color-eggshell)' : 'var(--color-text)',
-                    border: isActive ? '1px solid var(--color-verdun)' : '1px solid rgba(219, 218, 175, 0.6)',
-                    boxShadow: isActive 
-                      ? 'inset 0 1px 1px 0 rgba(255, 255, 255, 0.35), 0 4px 14px rgba(72, 82, 28, 0.25)' 
-                      : 'inset 0 1px 1px 0 rgba(255, 255, 255, 0.7), 0 2px 6px rgba(37, 40, 25, 0.04)'
+                    boxShadow: isActive ? '0 4px 14px rgba(72, 82, 28, 0.28)' : 'none'
                   }}
                 >
                   {tab.label}
@@ -198,94 +215,94 @@ export const PropertyDiscovery: React.FC<PropertyDiscoveryProps> = ({
               );
             })}
           </div>
+        </div>
 
-          {/* Search Input & Sort Selector Row — Translucent Glass Container */}
-          <div className="reveal-fade-up delay-250" style={{
-            display: 'flex',
-            flexWrap: 'wrap',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            gap: '1rem',
-            background: 'linear-gradient(135deg, rgba(255, 255, 255, 0.75) 0%, rgba(252, 255, 245, 0.55) 100%)',
-            backdropFilter: 'blur(20px) saturate(160%)',
-            WebkitBackdropFilter: 'blur(20px) saturate(160%)',
-            border: '1px solid rgba(219, 218, 175, 0.55)',
-            borderRadius: 'var(--radius-xl)',
-            padding: '0.9rem 1.4rem',
-            boxShadow: 'inset 0 1px 1.5px 0 rgba(255, 255, 255, 0.85), 0 12px 32px rgba(37, 40, 25, 0.06)'
-          }}>
-            {/* Real Search Field — Translucent Glass Pill */}
-            <div style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '0.65rem',
-              flex: '1 1 min(100%, 280px)',
-              minWidth: 0,
-              background: 'rgba(252, 255, 245, 0.6)',
-              backdropFilter: 'blur(10px)',
-              WebkitBackdropFilter: 'blur(10px)',
-              padding: '0.6rem 1.25rem',
-              borderRadius: 'var(--radius-pill)',
-              border: '1px solid rgba(219, 218, 175, 0.55)',
-              boxShadow: 'inset 0 1px 1px 0 rgba(255, 255, 255, 0.7)'
-            }}>
-              <Search size={16} style={{ color: 'var(--color-muted)', flexShrink: 0 }} />
-              <input 
-                type="text"
-                placeholder="Search by title, configuration (e.g. 2 BHK, Villa), or locality..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                style={{
-                  background: 'transparent',
-                  border: 'none',
-                  outline: 'none',
-                  color: 'var(--color-text)',
-                  fontSize: '0.86rem',
-                  width: '100%',
-                  minWidth: 0,
-                  fontFamily: 'var(--font-sans)'
-                }}
-                aria-label="Search properties by title, configuration or locality"
-              />
-              {searchQuery && (
-                <button 
-                  onClick={() => setSearchQuery('')}
-                  style={{ color: 'var(--color-muted)', padding: '2px', display: 'flex', alignItems: 'center' }}
-                  title="Clear search"
-                  aria-label="Clear search input"
-                >
-                  <X size={14} />
-                </button>
-              )}
+        {/* 2. Search & Sorter Controls Bar — Translucent Glass */}
+        <div className="reveal-fade-up delay-250" style={{
+          background: 'rgba(255, 255, 255, 0.65)',
+          backdropFilter: 'blur(16px)',
+          WebkitBackdropFilter: 'blur(16px)',
+          border: '1px solid var(--color-orinoco)',
+          borderRadius: 'var(--radius-lg)',
+          padding: '1rem 1.5rem',
+          marginBottom: '2rem',
+          display: 'flex',
+          flexWrap: 'wrap',
+          gap: '1rem',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          boxShadow: '0 4px 20px rgba(37, 40, 25, 0.03)'
+        }}>
+          {/* Search Input Box */}
+          <div style={{ flex: '1 1 300px', position: 'relative', minWidth: '260px' }}>
+            <div style={{ position: 'absolute', left: '1rem', top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none', color: 'var(--color-muted)', display: 'flex', alignItems: 'center' }}>
+              <Search size={18} />
             </div>
-
-            {/* Sort Dropdown — Translucent Glass Pill */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
-              <span style={{ fontSize: '0.78rem', color: 'var(--color-muted)', fontWeight: 500 }}>Sort By:</span>
-              <select
-                value={sortBy}
-                onChange={(e) => setSortBy(e.target.value as any)}
-                style={{
-                  background: 'rgba(252, 255, 245, 0.6)',
-                  backdropFilter: 'blur(10px)',
-                  WebkitBackdropFilter: 'blur(10px)',
-                  color: 'var(--color-text)',
-                  border: '1px solid rgba(219, 218, 175, 0.55)',
-                  borderRadius: 'var(--radius-pill)',
-                  padding: '0.55rem 1.25rem',
-                  fontSize: '0.8rem',
-                  outline: 'none',
-                  cursor: 'pointer',
-                  fontWeight: 500,
-                  boxShadow: 'inset 0 1px 1px 0 rgba(255, 255, 255, 0.7)'
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search by locality, configuration (e.g. Kaikondrahalli, 3 BHK, Villa)..."
+              style={{
+                width: '100%',
+                padding: '0.75rem 2.5rem 0.75rem 2.85rem',
+                fontSize: '0.9rem',
+                borderRadius: 'var(--radius-pill)',
+                border: '1px solid rgba(219, 218, 175, 0.7)',
+                background: 'rgba(252, 255, 245, 0.6)',
+                color: 'var(--color-text)',
+                outline: 'none',
+                transition: 'all var(--transition-fast)'
+              }}
+              aria-label="Search properties"
+            />
+            {searchQuery && (
+              <button 
+                onClick={() => setSearchQuery('')}
+                style={{ 
+                  position: 'absolute', 
+                  right: '0.85rem', 
+                  top: '50%', 
+                  transform: 'translateY(-50%)', 
+                  color: 'var(--color-muted)', 
+                  padding: '4px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  cursor: 'pointer'
                 }}
-                aria-label="Sort properties"
+                title="Clear search"
+                aria-label="Clear search"
               >
-                <option value="featured">Featured First</option>
-                <option value="price-asc">Price: Low to High</option>
-                <option value="price-desc">Price: High to Low</option>
-              </select>
-            </div>
+                <X size={15} />
+              </button>
+            )}
+          </div>
+
+          {/* Sorter Selector */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+            <span style={{ fontSize: '0.85rem', color: 'var(--color-muted)', fontWeight: 500 }}>
+              Sort by:
+            </span>
+            <select
+              value={sortBy}
+              onChange={(e) => handleSortChange(e.target.value as any)}
+              style={{
+                padding: '0.65rem 1.25rem',
+                borderRadius: 'var(--radius-pill)',
+                border: '1px solid rgba(219, 218, 175, 0.7)',
+                background: 'rgba(252, 255, 245, 0.7)',
+                color: 'var(--color-text)',
+                fontSize: '0.85rem',
+                fontWeight: 500,
+                cursor: 'pointer',
+                outline: 'none'
+              }}
+              aria-label="Sort properties"
+            >
+              <option value="featured">Featured First</option>
+              <option value="price-asc">Price: Low to High</option>
+              <option value="price-desc">Price: High to Low</option>
+            </select>
           </div>
         </div>
 
@@ -311,7 +328,9 @@ export const PropertyDiscovery: React.FC<PropertyDiscoveryProps> = ({
                 fontWeight: 600,
                 textDecoration: 'underline',
                 fontSize: '0.82rem',
-                cursor: 'pointer'
+                cursor: 'pointer',
+                background: 'none',
+                border: 'none'
               }}
             >
               Reset all filters
@@ -319,24 +338,8 @@ export const PropertyDiscovery: React.FC<PropertyDiscoveryProps> = ({
           )}
         </div>
 
-        {/* 4. Loading State or Property Grid or Clean Empty State */}
-        {isLoading ? (
-          <div style={{
-            textAlign: 'center',
-            padding: '5rem 2rem',
-            background: '#FFFFFF',
-            borderRadius: 'var(--radius-xl)',
-            border: '1px solid var(--color-orinoco)'
-          }}>
-            <RefreshCw size={32} style={{ animation: 'spin 1s linear infinite', color: 'var(--color-verdun)', margin: '0 auto 1.25rem' }} />
-            <h3 style={{ fontFamily: 'var(--font-heading)', color: 'var(--color-verdun)', marginBottom: '0.5rem' }}>
-              Synchronizing Verified Residences...
-            </h3>
-            <p style={{ color: 'var(--color-muted)', fontSize: '0.9rem' }}>
-              Connecting to authoritative PostgreSQL property database across devices.
-            </p>
-          </div>
-        ) : filteredProperties.length > 0 ? (
+        {/* 4. Property Grid or Clean Empty State */}
+        {filteredProperties.length > 0 ? (
           <div style={{
             display: 'grid',
             gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 320px), 1fr))',
@@ -369,28 +372,24 @@ export const PropertyDiscovery: React.FC<PropertyDiscoveryProps> = ({
               color: 'var(--color-verdun)',
               marginBottom: '0.5rem'
             }}>
-              No Matching Properties Found
+              No Matching Residences Found
             </h3>
-            <p style={{ color: 'var(--color-muted)', maxWidth: '480px', margin: '0 auto 1.75rem', lineHeight: 1.6, fontSize: '0.92rem' }}>
-              We could not find any properties matching "{searchQuery || activeTab}". Sri Balaji Real Estate handles unlisted private mandates and pre-market villas along Sarjapur Road.
+            <p style={{
+              color: 'var(--color-muted)',
+              maxWidth: '480px',
+              margin: '0 auto 1.5rem',
+              fontSize: '0.95rem',
+              lineHeight: 1.6
+            }}>
+              We couldn't find an exact match for your search criteria. Our off-market inventory on Sarjapur Road frequently has unlisted mandates.
             </p>
-            <div style={{ display: 'flex', justifyContent: 'center', gap: '1rem', flexWrap: 'wrap' }}>
-              <button 
-                onClick={resetFilters}
-                className="btn-outline"
-              >
-                Clear Search & Filters
-              </button>
-              <button 
-                onClick={() => onEnquire('Off-Market Mandate Search')}
-                className="btn-primary"
-              >
-                <span>Request Off-Market Mandate</span>
-                <span className="btn-arrow">
-                  <ArrowRight size={15} />
-                </span>
-              </button>
-            </div>
+            <button
+              onClick={resetFilters}
+              className="btn-primary"
+              style={{ padding: '0.75rem 1.75rem' }}
+            >
+              View All Properties
+            </button>
           </div>
         )}
       </div>

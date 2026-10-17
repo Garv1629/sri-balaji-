@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { X, MessageSquare, Phone, ShieldCheck, CheckCircle2, Copy, Check, Building2 } from 'lucide-react';
 import { EnquiryData } from '../types/property';
+import { loadEnquiryDraft, clearEnquiryDraft } from '../lib/indexedDb';
 
 interface EnquiryModalProps {
   isOpen: boolean;
@@ -41,6 +42,23 @@ export const EnquiryModal: React.FC<EnquiryModalProps> = ({
   const [preparedText, setPreparedText] = useState('');
   const [whatsappUrl, setWhatsappUrl] = useState('');
   const [copied, setCopied] = useState(false);
+
+  // Step 13: Restore saved name/phone from IndexedDB draft if available
+  useEffect(() => {
+    let isMounted = true;
+    loadEnquiryDraft().then((saved) => {
+      if (isMounted && saved) {
+        setFormData(prev => ({
+          ...prev,
+          fullName: prev.fullName || saved.fullName || '',
+          phone: prev.phone || saved.phone || ''
+        }));
+      }
+    });
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   // Keyboard navigation & body scroll locking for accessibility
   useEffect(() => {
@@ -138,6 +156,7 @@ export const EnquiryModal: React.FC<EnquiryModalProps> = ({
     setTimeout(() => {
       setIsSubmitting(false);
       setShowConfirmation(true);
+      clearEnquiryDraft();
       window.open(url, '_blank', 'noopener,noreferrer');
     }, 400);
   };

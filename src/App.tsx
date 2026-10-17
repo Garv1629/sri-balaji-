@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import { Property, PropertyCategory } from './types/property';
-import { PropertyProvider } from './context/PropertyContext';
 import { Navbar } from './components/Navbar';
 import { Hero } from './components/Hero';
 import { EditorialIntro } from './components/EditorialIntro';
@@ -13,15 +12,13 @@ import { Footer } from './components/Footer';
 import { PropertyModal } from './components/PropertyModal';
 import { EnquiryModal } from './components/EnquiryModal';
 import { WhatsAppFloatingButton } from './components/WhatsAppFloatingButton';
-import { AdminPortal } from './components/AdminPortal';
 
-const MainApp: React.FC = () => {
+export const App: React.FC = () => {
   const [selectedCategory, setSelectedCategory] = useState<PropertyCategory>('all');
   const [activePropertyModal, setActivePropertyModal] = useState<Property | null>(null);
   const [enquiryProperty, setEnquiryProperty] = useState<Property | null>(null);
   const [enquiryPropertyTitle, setEnquiryPropertyTitle] = useState<string>('');
   const [isEnquiryModalOpen, setIsEnquiryModalOpen] = useState(false);
-  const [isAdminPortalOpen, setIsAdminPortalOpen] = useState(false);
 
   const handleOpenEnquiry = (propertyOrTitle?: Property | string) => {
     if (typeof propertyOrTitle === 'object' && propertyOrTitle !== null) {
@@ -100,11 +97,8 @@ const MainApp: React.FC = () => {
 
   return (
     <div style={{ position: 'relative', minHeight: '100vh', background: 'var(--bg-primary)' }}>
-      {/* Sticky Adapted Luxury Navigation with Admin Portal Access */}
-      <Navbar 
-        onOpenEnquiry={() => handleOpenEnquiry()} 
-        onOpenAdmin={() => setIsAdminPortalOpen(true)}
-      />
+      {/* Sticky Adapted Luxury Navigation */}
+      <Navbar onOpenEnquiry={() => handleOpenEnquiry()} />
 
       {/* Main Content Landmark */}
       <main id="main-content">
@@ -117,7 +111,7 @@ const MainApp: React.FC = () => {
         {/* 2. Editorial Introduction to Sri Balaji Real Estate */}
         <EditorialIntro />
 
-        {/* 3. Property Discovery & Category Filter Portfolio (Authoritative Realtime DB) */}
+        {/* 3. Property Discovery & Category Filter Portfolio */}
         <PropertyDiscovery 
           selectedCategory={selectedCategory}
           onSelectCategory={(cat) => setSelectedCategory(cat)}
@@ -134,7 +128,7 @@ const MainApp: React.FC = () => {
         {/* 6. Customer Testimonials: Genuine Google 5.0 Rating (68 Reviews) */}
         <TestimonialsSection />
 
-        {/* 7. Bespoke Consultation & Working Contact Form */}
+        {/* 7. Bespoke Consultation & Working Contact Form with IndexedDB Persistence */}
         <EnquirySection 
           initialProperty={enquiryPropertyTitle} 
           selectedPropertyObj={enquiryProperty}
@@ -163,21 +157,7 @@ const MainApp: React.FC = () => {
         prefilledLocation={enquiryProperty?.location}
         prefilledConfiguration={enquiryProperty?.configuration}
       />
-
-      {/* Step 12: Admin Inventory & Cross-Device Database Console */}
-      <AdminPortal 
-        isOpen={isAdminPortalOpen}
-        onClose={() => setIsAdminPortalOpen(false)}
-      />
     </div>
-  );
-};
-
-export const App: React.FC = () => {
-  return (
-    <PropertyProvider>
-      <MainApp />
-    </PropertyProvider>
   );
 };
 

@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
-import { Search, X, Sparkles, Filter, AlertCircle, ArrowRight } from 'lucide-react';
+import { Search, X, Sparkles, Filter, AlertCircle, ArrowRight, RefreshCw, CheckCircle2 } from 'lucide-react';
 import { Property, PropertyFilterTab } from '../types/property';
-import { PROPERTIES } from '../data/properties';
+import { useProperties } from '../context/PropertyContext';
 import { PropertyCard } from './PropertyCard';
 
 interface PropertyDiscoveryProps {
@@ -17,6 +17,7 @@ export const PropertyDiscovery: React.FC<PropertyDiscoveryProps> = ({
   onSelectProperty,
   onEnquire
 }) => {
+  const { properties, isLoading, isSupabaseLive } = useProperties();
   const [activeTab, setActiveTab] = useState<PropertyFilterTab>(
     (selectedCategory as PropertyFilterTab) || 'all'
   );
@@ -48,9 +49,9 @@ export const PropertyDiscovery: React.FC<PropertyDiscoveryProps> = ({
     { key: 'rentals', label: 'Rental Properties' },
   ];
 
-  // Combined Search & Filter Logic
+  // Combined Search & Filter Logic from Authoritative Database
   const filteredProperties = useMemo(() => {
-    return PROPERTIES.filter(property => {
+    return properties.filter(property => {
       // 1. Category Tab Filter
       if (activeTab === 'apartments') {
         if (property.category !== 'apartments' && property.type !== 'Apartment' && property.type !== 'Penthouse' && property.type !== 'Studio') {
@@ -318,8 +319,24 @@ export const PropertyDiscovery: React.FC<PropertyDiscoveryProps> = ({
           )}
         </div>
 
-        {/* 4. Property Grid or Clean Empty State */}
-        {filteredProperties.length > 0 ? (
+        {/* 4. Loading State or Property Grid or Clean Empty State */}
+        {isLoading ? (
+          <div style={{
+            textAlign: 'center',
+            padding: '5rem 2rem',
+            background: '#FFFFFF',
+            borderRadius: 'var(--radius-xl)',
+            border: '1px solid var(--color-orinoco)'
+          }}>
+            <RefreshCw size={32} style={{ animation: 'spin 1s linear infinite', color: 'var(--color-verdun)', margin: '0 auto 1.25rem' }} />
+            <h3 style={{ fontFamily: 'var(--font-heading)', color: 'var(--color-verdun)', marginBottom: '0.5rem' }}>
+              Synchronizing Verified Residences...
+            </h3>
+            <p style={{ color: 'var(--color-muted)', fontSize: '0.9rem' }}>
+              Connecting to authoritative PostgreSQL property database across devices.
+            </p>
+          </div>
+        ) : filteredProperties.length > 0 ? (
           <div style={{
             display: 'grid',
             gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 320px), 1fr))',

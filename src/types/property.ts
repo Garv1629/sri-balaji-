@@ -35,6 +35,9 @@ export interface Property {
   facing: 'East' | 'North' | 'North-East' | 'West';
   possession: string; // e.g. "Ready to Move" or "Dec 2025"
   status: 'Ready to Move' | 'Under Construction' | 'Immediate Lease' | 'Under Offer';
+  publicationStatus?: 'published' | 'hidden'; // 'published' = visible to public, 'hidden' = admin-only draft
+  createdAt?: string;
+  updatedAt?: string;
   availability: 'Available' | 'Sample Representation' | 'Verified Office Mandate';
   isDemoListing: boolean; // clearly distinguishes demo showcase from production verified inventory
   featured: boolean;

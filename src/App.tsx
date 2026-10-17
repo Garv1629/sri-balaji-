@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Property, PropertyCategory } from './types/property';
+import { PropertyProvider } from './context/PropertyContext';
 import { Navbar } from './components/Navbar';
 import { Hero } from './components/Hero';
 import { EditorialIntro } from './components/EditorialIntro';
@@ -12,13 +13,15 @@ import { Footer } from './components/Footer';
 import { PropertyModal } from './components/PropertyModal';
 import { EnquiryModal } from './components/EnquiryModal';
 import { WhatsAppFloatingButton } from './components/WhatsAppFloatingButton';
+import { AdminPortal } from './components/AdminPortal';
 
-export const App: React.FC = () => {
+const MainApp: React.FC = () => {
   const [selectedCategory, setSelectedCategory] = useState<PropertyCategory>('all');
   const [activePropertyModal, setActivePropertyModal] = useState<Property | null>(null);
   const [enquiryProperty, setEnquiryProperty] = useState<Property | null>(null);
   const [enquiryPropertyTitle, setEnquiryPropertyTitle] = useState<string>('');
   const [isEnquiryModalOpen, setIsEnquiryModalOpen] = useState(false);
+  const [isAdminPortalOpen, setIsAdminPortalOpen] = useState(false);
 
   const handleOpenEnquiry = (propertyOrTitle?: Property | string) => {
     if (typeof propertyOrTitle === 'object' && propertyOrTitle !== null) {
@@ -52,7 +55,6 @@ export const App: React.FC = () => {
           entries.forEach((entry) => {
             if (entry.isIntersecting) {
               entry.target.classList.add('is-visible');
-              // Unobserve once revealed to prevent repetitive animation flicker
               observer.unobserve(entry.target);
             }
           });
@@ -98,8 +100,11 @@ export const App: React.FC = () => {
 
   return (
     <div style={{ position: 'relative', minHeight: '100vh', background: 'var(--bg-primary)' }}>
-      {/* Sticky Adapted Luxury Navigation */}
-      <Navbar onOpenEnquiry={() => handleOpenEnquiry()} />
+      {/* Sticky Adapted Luxury Navigation with Admin Portal Access */}
+      <Navbar 
+        onOpenEnquiry={() => handleOpenEnquiry()} 
+        onOpenAdmin={() => setIsAdminPortalOpen(true)}
+      />
 
       {/* Main Content Landmark */}
       <main id="main-content">
@@ -112,7 +117,7 @@ export const App: React.FC = () => {
         {/* 2. Editorial Introduction to Sri Balaji Real Estate */}
         <EditorialIntro />
 
-        {/* 3. Property Discovery & Category Filter Portfolio */}
+        {/* 3. Property Discovery & Category Filter Portfolio (Authoritative Realtime DB) */}
         <PropertyDiscovery 
           selectedCategory={selectedCategory}
           onSelectCategory={(cat) => setSelectedCategory(cat)}
@@ -158,7 +163,21 @@ export const App: React.FC = () => {
         prefilledLocation={enquiryProperty?.location}
         prefilledConfiguration={enquiryProperty?.configuration}
       />
+
+      {/* Step 12: Admin Inventory & Cross-Device Database Console */}
+      <AdminPortal 
+        isOpen={isAdminPortalOpen}
+        onClose={() => setIsAdminPortalOpen(false)}
+      />
     </div>
+  );
+};
+
+export const App: React.FC = () => {
+  return (
+    <PropertyProvider>
+      <MainApp />
+    </PropertyProvider>
   );
 };
 

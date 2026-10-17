@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { Phone, MessageSquare, Menu, X, Star, MapPin } from 'lucide-react';
+import { Phone, MessageSquare, Menu, X, Star, MapPin, Database } from 'lucide-react';
 
 interface NavbarProps {
   onOpenEnquiry: (propertyTitle?: string) => void;
+  onOpenAdmin?: () => void;
 }
 
-export const Navbar: React.FC<NavbarProps> = ({ onOpenEnquiry }) => {
+export const Navbar: React.FC<NavbarProps> = ({ onOpenEnquiry, onOpenAdmin }) => {
   const [isScrolled, setIsScrolled] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
@@ -40,7 +41,7 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenEnquiry }) => {
             <span>6, 5th Main Rd, Amrita Nagar, Sarjapur Rd, Bengaluru</span>
           </div>
           
-          <div style={{ display: 'flex', alignItems: 'center', gap: '1.25rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
             {/* Google Rating Pill */}
             <div style={{
               display: 'inline-flex',
@@ -56,6 +57,31 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenEnquiry }) => {
               <strong style={{ color: 'var(--color-eggshell)' }}>5.0 / 5.0</strong>
               <span style={{ color: 'var(--color-orinoco)' }}>(68 Verified Reviews)</span>
             </div>
+
+            {/* Step 12: Admin Database Console Access Pill */}
+            {onOpenAdmin && (
+              <button
+                onClick={onOpenAdmin}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '0.35rem',
+                  background: 'rgba(252, 255, 245, 0.18)',
+                  padding: '0.2rem 0.75rem',
+                  borderRadius: 'var(--radius-pill)',
+                  border: '1px solid var(--color-orinoco)',
+                  color: 'var(--color-eggshell)',
+                  cursor: 'pointer',
+                  fontSize: '0.75rem',
+                  fontWeight: 600,
+                  transition: 'all 0.2s ease'
+                }}
+                title="Manage properties, publication status, and run cross-device audit"
+              >
+                <Database size={11} style={{ color: 'var(--color-orinoco)' }} />
+                <span>Admin Console</span>
+              </button>
+            )}
 
             <a 
               href="tel:+919535854614"
@@ -303,6 +329,31 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenEnquiry }) => {
             >
               Google Reviews (5.0 ★)
             </a>
+            {onOpenAdmin && (
+              <button
+                onClick={() => {
+                  setMobileMenuOpen(false);
+                  onOpenAdmin();
+                }}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.5rem',
+                  fontSize: '1rem',
+                  color: 'var(--color-verdun)',
+                  borderBottom: '1px solid var(--color-orinoco)',
+                  paddingBottom: '0.5rem',
+                  fontWeight: 600,
+                  background: 'none',
+                  border: 'none',
+                  textAlign: 'left',
+                  cursor: 'pointer'
+                }}
+              >
+                <Database size={16} />
+                <span>Admin Inventory Console</span>
+              </button>
+            )}
             <a 
               href="#contact" 
               onClick={() => setMobileMenuOpen(false)}
